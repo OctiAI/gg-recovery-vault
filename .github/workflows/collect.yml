@@ -1,0 +1,62 @@
+name: Collect encrypted GoalsGraph backup
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: Exercise the independent alert path without accessing production.
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: goalsgraph-backup-collection
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure restricted source access
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${BACKUP_EXPORT_SSH_KEY}" > ~/.ssh/id_ed25519
+          printf '%s\n' "${BACKUP_SOURCE_KNOWN_HOSTS}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+        env:
+          BACKUP_EXPORT_SSH_KEY: ${{ secrets.BACKUP_EXPORT_SSH_KEY }}
+          BACKUP_SOURCE_KNOWN_HOSTS: ${{ secrets.BACKUP_SOURCE_KNOWN_HOSTS }}
+
+      - name: Controlled alert test
+        if: ${{ inputs.simulate_failure }}
+        run: exit 1
+
+      - name: Fetch latest ciphertext only
+        run: |
+          ssh -o BatchMode=yes -o ClearAllForwardings=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts root@"${BACKUP_SOURCE_HOST}" > /tmp/goalsgraph-backup.tar
+        env:
+          BACKUP_SOURCE_HOST: ${{ secrets.BACKUP_SOURCE_HOST }}
+
+      - name: Verify and archive ciphertext
+        run: ./scripts/collect-backup.sh /tmp/goalsgraph-backup.tar "$GITHUB_WORKSPACE"
+
+      - name: Open independent alert receipt
+        if: ${{ failure() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/open-alert.sh
+
+      - name: Resolve independent alert receipt
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/close-alert.sh
