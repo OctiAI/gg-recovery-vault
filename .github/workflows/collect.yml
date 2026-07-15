@@ -26,25 +26,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure restricted source access
-        run: |
-          install -d -m 700 ~/.ssh
-          printf '%s\n' "${BACKUP_EXPORT_SSH_KEY}" > ~/.ssh/id_ed25519
-          printf '%s\n' "${BACKUP_SOURCE_KNOWN_HOSTS}" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
-        env:
-          BACKUP_EXPORT_SSH_KEY: ${{ secrets.BACKUP_EXPORT_SSH_KEY }}
-          BACKUP_SOURCE_KNOWN_HOSTS: ${{ secrets.BACKUP_SOURCE_KNOWN_HOSTS }}
-
       - name: Controlled alert test
         if: ${{ inputs.simulate_failure }}
         run: exit 1
 
       - name: Fetch latest ciphertext only
         run: |
-          ssh -o BatchMode=yes -o ClearAllForwardings=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts root@"${BACKUP_SOURCE_HOST}" > /tmp/goalsgraph-backup.tar
+          curl --fail --silent --show-error --proto '=https' --tlsv1.2 --user "${BACKUP_EXPORT_HTTP_USER}:${BACKUP_EXPORT_HTTP_PASSWORD}" "${BACKUP_EXPORT_URL}" > /tmp/goalsgraph-backup.tar
         env:
-          BACKUP_SOURCE_HOST: ${{ secrets.BACKUP_SOURCE_HOST }}
+          BACKUP_EXPORT_HTTP_USER: ${{ secrets.BACKUP_EXPORT_HTTP_USER }}
+          BACKUP_EXPORT_HTTP_PASSWORD: ${{ secrets.BACKUP_EXPORT_HTTP_PASSWORD }}
+          BACKUP_EXPORT_URL: ${{ secrets.BACKUP_EXPORT_URL }}
 
       - name: Verify and archive ciphertext
         run: ./scripts/collect-backup.sh /tmp/goalsgraph-backup.tar "$GITHUB_WORKSPACE"
