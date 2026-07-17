@@ -1,0 +1,8 @@
+{
+  "schema": "goalsgraph-age-v1",
+  "source_name": "goalsgraph-20260717T082935Z.dump",
+  "created_at": "2026-07-17T08:29:35Z",
+  "plaintext_sha256": "e24b438bac83376eea27e638053111fa030352279c1671d478e034d228fae038",
+  "ciphertext_sha256": "fcf8db4e7082c42485496f2c6ad91728a382458e904b86d350642c0ba3155b7b",
+  "ciphertext_bytes": 62680
+}
